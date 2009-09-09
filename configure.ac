@@ -3,7 +3,7 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_PROG_CC
 
 AM_PATH_GTK_2_0([2.8.0])
-PKG_CHECK_MODULES(GTK, gdk-2.0 gtk+-2.0,,exit)
+PKG_CHECK_MODULES(GTK, gdk-2.0 gtk+-2.0 cairo,,exit)
 AC_SUBST(GTK_LIBS)
 AC_SUBST(GTK_CFLAGS)
 

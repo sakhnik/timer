@@ -1,0 +1,12 @@
+AC_INIT([timer], [0.1], [sakhnik@gmail.com])
+AM_INIT_AUTOMAKE([-Wall -Werror foreign])
+AC_PROG_CC
+
+AM_PATH_GTK_2_0([2.8.0])
+PKG_CHECK_MODULES(GTK, gdk-2.0 gtk+-2.0,,exit)
+AC_SUBST(GTK_LIBS)
+AC_SUBST(GTK_CFLAGS)
+
+dnl AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_FILES([Makefile src/Makefile])
+AC_OUTPUT

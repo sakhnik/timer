@@ -94,11 +94,16 @@ sam_clock_on_timer (gpointer data)
 static void
 sam_clock_init (SamClock *clock)
 {
+    GtkWidget *sep;
+
     SamClockPrivate* priv = SAM_CLOCK_GET_PRIVATE (clock);
     priv->m1 = sam_digit_new ();
     gtk_box_pack_start (GTK_BOX(clock), priv->m1, TRUE, TRUE, 0);
     priv->m2 = sam_digit_new ();
     gtk_box_pack_start (GTK_BOX(clock), priv->m2, TRUE, TRUE, 0);
+
+    sep = gtk_vseparator_new ();
+    gtk_box_pack_start (GTK_BOX(clock), sep, TRUE, TRUE, 0);
 
     priv->s1 = sam_digit_new ();
     gtk_box_pack_start (GTK_BOX(clock), priv->s1, TRUE, TRUE, 0);

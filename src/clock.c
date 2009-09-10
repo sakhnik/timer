@@ -5,6 +5,7 @@ struct _SamClockPrivate
 {
     GtkWidget *m1;
     GtkWidget *m2;
+    GtkWidget *m3;
     GtkWidget *s1;
     GtkWidget *s2;
 
@@ -70,23 +71,71 @@ sam_clock_digit_to_bits(int digit)
     }
 }
 
+static void* sam_clock_do_beep0 (void* arg)
+{
+    system ("paplay beep0.wav");
+    return NULL;
+}
+
+static void* sam_clock_do_beep1 (void* arg)
+{
+    system ("paplay beep1.wav");
+    return NULL;
+}
+
+static void
+sam_clock_check_beep (SamClock *clock)
+{
+    int secs = SAM_CLOCK_GET_PRIVATE (clock)->secs % 60;
+    if (!secs)
+    {
+        pthread_t pt;
+        pthread_create (&pt, NULL,
+                        &sam_clock_do_beep0, NULL);
+        return;
+    }
+    if (secs >= 55)
+    {
+        pthread_t pt;
+        pthread_create (&pt, NULL,
+                        &sam_clock_do_beep1, NULL);
+        return;
+    }
+}
+
+static int
+sam_clock_add_second (SamClock *clock, int dt)
+{
+    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
+    const int MAX_SEC = 1000 * 60;
+    priv->secs += dt;
+    if (priv->secs < 0)
+        priv->secs += MAX_SEC;
+    if (priv->secs >= MAX_SEC)
+        priv->secs -= MAX_SEC;
+    return priv->secs;
+}
+
 static gboolean
 sam_clock_on_timer (gpointer data)
 {
     int secs, mins;
     SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-    ++priv->secs;
+    sam_clock_add_second (clock, 1);
     secs = priv->secs % 60;
     mins = priv->secs / 60;
-    sam_digit_set_bits (SAM_DIGIT(priv->s2),
-                        sam_clock_digit_to_bits(secs % 10));
     sam_digit_set_bits (SAM_DIGIT(priv->s1),
+                        sam_clock_digit_to_bits(secs % 10));
+    sam_digit_set_bits (SAM_DIGIT(priv->s2),
                         sam_clock_digit_to_bits(secs / 10));
-    sam_digit_set_bits (SAM_DIGIT(priv->m2),
-                        sam_clock_digit_to_bits(mins % 10));
     sam_digit_set_bits (SAM_DIGIT(priv->m1),
-                        sam_clock_digit_to_bits(mins / 10));
+                        sam_clock_digit_to_bits(mins % 10));
+    sam_digit_set_bits (SAM_DIGIT(priv->m2),
+                        sam_clock_digit_to_bits(mins / 10 % 10));
+    sam_digit_set_bits (SAM_DIGIT(priv->m3),
+                        sam_clock_digit_to_bits(mins / 100));
+    sam_clock_check_beep (clock);
     gtk_widget_queue_draw (GTK_WIDGET (clock));
     return TRUE;
 }
@@ -97,20 +146,22 @@ sam_clock_init (SamClock *clock)
     GtkWidget *sep;
 
     SamClockPrivate* priv = SAM_CLOCK_GET_PRIVATE (clock);
-    priv->m1 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX(clock), priv->m1, TRUE, TRUE, 0);
+    priv->m3 = sam_digit_new ();
+    gtk_box_pack_start (GTK_BOX(clock), priv->m3, TRUE, TRUE, 0);
     priv->m2 = sam_digit_new ();
     gtk_box_pack_start (GTK_BOX(clock), priv->m2, TRUE, TRUE, 0);
+    priv->m1 = sam_digit_new ();
+    gtk_box_pack_start (GTK_BOX(clock), priv->m1, TRUE, TRUE, 0);
 
     sep = gtk_vseparator_new ();
     gtk_box_pack_start (GTK_BOX(clock), sep, TRUE, TRUE, 0);
 
-    priv->s1 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX(clock), priv->s1, TRUE, TRUE, 0);
     priv->s2 = sam_digit_new ();
     gtk_box_pack_start (GTK_BOX(clock), priv->s2, TRUE, TRUE, 0);
+    priv->s1 = sam_digit_new ();
+    gtk_box_pack_start (GTK_BOX(clock), priv->s1, TRUE, TRUE, 0);
 
-    priv->secs = 0;
+    priv->secs = 999*60;
 
     priv->timer = g_timeout_add (1000, sam_clock_on_timer, clock);
 }

@@ -91,7 +91,8 @@ sam_clock_cycle_digit (SamClock *clock, int n)
     guint secs = priv->secs % 60;
     char buf[24];
     snprintf(buf, sizeof(buf), "%03d%02d", mins, secs);
-    if (++buf[n] > '9')
+    ++buf[n];
+    if ((n == 3 && buf[n] > '5') || buf[n] > '9')
         buf[n] = '0';
     sscanf(buf, "%03d%02d", &mins, &secs);
     priv->secs = mins * 60 + secs;

@@ -29,9 +29,9 @@ sam_digit_draw (GtkWidget *digit, cairo_t *cr)
     double b = w * 0.5;
 
     if (priv->visible)
-        cairo_set_source_rgb (cr, 0, 0.5, 0);
+        cairo_set_source_rgba (cr, 0, 0.5, 0, 1);
     else
-        cairo_set_source_rgb (cr, 0, 0, 0);
+        cairo_set_source_rgba (cr, 0, 0.5, 0, 0);
     cairo_set_line_width (cr, w);
     if (bits & (1 << 0))
     {

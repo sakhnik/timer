@@ -33,11 +33,13 @@ struct _SamDigitClass
     GtkDrawingAreaClass parent_class;
 };
 
-extern GtkWidget* sam_digit_new (void);
+GtkWidget* sam_digit_new (void);
 
-extern void sam_digit_set_bits (SamDigit* digit, int bits);
+void sam_digit_set_bits (SamDigit* digit, int bits);
+int sam_digit_get_bits (SamDigit* digit);
 
-extern int sam_digit_get_bits (SamDigit* digit);
+void sam_digit_set_visible (SamDigit* digit, gboolean visible);
+gboolean sam_digit_get_visible (SamDigit* digit);
 
 G_END_DECLS
 

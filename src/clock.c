@@ -1,6 +1,18 @@
 #include "clock.h"
 #include "digit.h"
 
+enum SamClockMode
+{
+    SCM_NORMAL = 0,
+    SCM_ADJUST_M3,
+    SCM_ADJUST_M2,
+    SCM_ADJUST_M1,
+    SCM_ADJUST_S2,
+    SCM_ADJUST_S1,
+
+    SCM_LAST
+};
+
 struct _SamClockPrivate
 {
     // Minutes
@@ -13,16 +25,15 @@ struct _SamClockPrivate
     // Buttons
     GtkWidget *beep;
     GtkWidget *start;
-    GtkWidget *minpp;
-    GtkWidget *minmm;
-    GtkWidget *secpp;
-    GtkWidget *secmm;
+    GtkWidget *adjust;
+    GtkWidget *cycle;
 
     int secs;
     guint timer;
+    enum SamClockMode mode;
 };
 
-G_DEFINE_TYPE (SamClock, sam_clock, GTK_TYPE_TABLE)
+G_DEFINE_TYPE (SamClock, sam_clock, GTK_TYPE_HBOX)
 
 #define SAM_CLOCK_GET_PRIVATE(obj) \
         (G_TYPE_INSTANCE_GET_PRIVATE ((obj), SAM_TYPE_CLOCK, SamClockPrivate))
@@ -127,6 +138,20 @@ sam_clock_add_second (SamClock *clock, int dt)
 }
 
 static void
+sam_clock_cycle_digit (SamClock *clock, int n)
+{
+    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
+    guint mins = priv->secs / 60;
+    guint secs = priv->secs % 60;
+    char buf[24];
+    snprintf(buf, sizeof(buf), "%03d%02d", mins, secs);
+    if (++buf[n] > '9')
+        buf[n] = '0';
+    sscanf(buf, "%03d%02d", &mins, &secs);
+    priv->secs = mins * 60 + secs;
+}
+
+static void
 update_digits (SamClock *clock)
 {
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
@@ -169,110 +194,139 @@ on_start_clicked (GtkToggleButton *start, gpointer data)
     SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
     gboolean started = gtk_toggle_button_get_active (start);
-    gtk_widget_set_sensitive (GTK_WIDGET (priv->minpp), !started);
-    gtk_widget_set_sensitive (GTK_WIDGET (priv->minmm), !started);
-    gtk_widget_set_sensitive (GTK_WIDGET (priv->secpp), !started);
-    gtk_widget_set_sensitive (GTK_WIDGET (priv->secmm), !started);
+    gtk_widget_set_sensitive (GTK_WIDGET (priv->adjust), !started);
+    gtk_widget_set_sensitive (GTK_WIDGET (priv->cycle), !started);
     if (priv->timer)
         g_source_remove (priv->timer);
     if (started)
         priv->timer = g_timeout_add (1000, sam_clock_on_timer, clock);
 }
 
-static void
-on_min_clicked (GtkButton *min, gpointer data)
+static GtkWidget*
+get_active_digit (SamClock *clock)
+{
+    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
+    switch (priv->mode)
+    {
+    case SCM_ADJUST_M3: return priv->m3;
+    case SCM_ADJUST_M2: return priv->m2;
+    case SCM_ADJUST_M1: return priv->m1;
+    case SCM_ADJUST_S2: return priv->s2;
+    case SCM_ADJUST_S1: return priv->s1;
+    }
+    return NULL;
+}
+
+static gboolean
+on_blink_digit (gpointer data)
 {
     SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-    int dt = 60;
-    if (GTK_WIDGET(min) == priv->minmm)
-        dt = -dt;
-    sam_clock_add_second (clock, dt);
-    update_digits (clock);
+    GtkWidget *active = get_active_digit (clock);
+
+    if (priv->timer)
+        g_source_remove (priv->timer);
+
+    if (!active)
+        return TRUE;
+
+    if (sam_digit_get_visible (SAM_DIGIT (active)))
+    {
+        sam_digit_set_visible (SAM_DIGIT (active), FALSE);
+        priv->timer = g_timeout_add (200, on_blink_digit, clock);
+    }
+    else
+    {
+        sam_digit_set_visible (SAM_DIGIT (active), TRUE);
+        priv->timer = g_timeout_add (500, on_blink_digit, clock);
+    }
+    gtk_widget_queue_draw (active);
+    return TRUE;
 }
 
 static void
-on_sec_clicked (GtkButton *sec, gpointer data)
+on_adjust_clicked (GtkButton *min, gpointer data)
 {
     SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-    int dt = 1;
-    if (GTK_WIDGET(sec) == priv->secmm)
-        dt = -dt;
-    sam_clock_add_second (clock, dt);
+    GtkWidget *active = get_active_digit (clock);
+    if (active)
+    {
+        sam_digit_set_visible (SAM_DIGIT (active), TRUE);
+        gtk_widget_queue_draw (active);
+    }
+    if (++priv->mode == SCM_LAST)
+        priv->mode = SCM_NORMAL;
+    on_blink_digit (clock);
+}
+
+static void
+on_cycle_clicked (GtkButton *sec, gpointer data)
+{
+    SamClock *clock = (SamClock *) data;
+    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
+    switch (priv->mode)
+    {
+    case SCM_ADJUST_M3: sam_clock_cycle_digit (clock, 0); break;
+    case SCM_ADJUST_M2: sam_clock_cycle_digit (clock, 1); break;
+    case SCM_ADJUST_M1: sam_clock_cycle_digit (clock, 2); break;
+    case SCM_ADJUST_S2: sam_clock_cycle_digit (clock, 3); break;
+    case SCM_ADJUST_S1: sam_clock_cycle_digit (clock, 4); break;
+    }
     update_digits (clock);
 }
 
 static void
 sam_clock_init (SamClock *clock)
 {
-    GtkWidget *sep;
     GtkWidget *tmp;
+    GtkWidget *vbox;
     SamClockPrivate* priv = SAM_CLOCK_GET_PRIVATE (clock);
 
-    gtk_table_resize (GTK_TABLE (clock), 3, 2);
-
     // Minutes
-    tmp = gtk_hbox_new (FALSE, 0);
-    gtk_table_attach (GTK_TABLE (clock), tmp, 0, 1, 0, 1,
-                      GTK_EXPAND, GTK_EXPAND, 0, 0);
-
     priv->m3 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX(tmp), priv->m3, TRUE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (clock), priv->m3, TRUE, TRUE, 0);
     priv->m2 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX(tmp), priv->m2, TRUE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (clock), priv->m2, TRUE, TRUE, 0);
     priv->m1 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX(tmp), priv->m1, TRUE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (clock), priv->m1, TRUE, TRUE, 0);
 
-    sep = gtk_vseparator_new ();
-    gtk_box_pack_start (GTK_BOX(tmp), sep, TRUE, TRUE, 0);
+    tmp = gtk_vseparator_new ();
+    gtk_box_pack_start (GTK_BOX (clock), tmp, TRUE, TRUE, 0);
 
     // Seconds
-    tmp = gtk_hbox_new (FALSE, 0);
-    gtk_table_attach (GTK_TABLE (clock), tmp, 1, 2, 0, 1,
-                      GTK_EXPAND, GTK_EXPAND, 0, 0);
     priv->s2 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX(tmp), priv->s2, TRUE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (clock), priv->s2, TRUE, TRUE, 0);
     priv->s1 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX(tmp), priv->s1, TRUE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (clock), priv->s1, TRUE, TRUE, 0);
 
-    // Beep + restart
-    tmp = gtk_vbox_new (FALSE, 0);
-    gtk_table_attach (GTK_TABLE (clock), tmp, 2, 3, 0, 1,
-                      GTK_EXPAND, GTK_EXPAND, 0, 0);
+    // Beep + restart + adjust + cycle
+    vbox = gtk_vbox_new (FALSE, 0);
+    gtk_box_pack_start (GTK_BOX (clock), vbox, TRUE, TRUE, 0);
+
     priv->beep = gtk_toggle_button_new_with_label ("Beep");
-    gtk_box_pack_start (GTK_BOX(tmp), priv->beep, TRUE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (vbox), priv->beep, TRUE, TRUE, 0);
     priv->start = gtk_toggle_button_new_with_label ("Start");
-    gtk_box_pack_start (GTK_BOX(tmp), priv->start, TRUE, TRUE, 0);
+    gtk_box_pack_start (GTK_BOX (vbox), priv->start, TRUE, TRUE, 0);
     g_signal_connect (priv->start, "toggled",
-                      G_CALLBACK(&on_start_clicked), clock);
+                      G_CALLBACK (&on_start_clicked), clock);
 
-    // Adjust minutes
-    tmp = gtk_vbox_new (FALSE, 0);
-    gtk_table_attach (GTK_TABLE (clock), tmp, 0, 1, 1, 2,
-                      GTK_EXPAND, GTK_EXPAND, 0, 0);
-    priv->minpp = gtk_button_new_with_label ("+1");
-    gtk_box_pack_start (GTK_BOX(tmp), priv->minpp, TRUE, TRUE, 0);
-    g_signal_connect (priv->minpp, "clicked",
-                      G_CALLBACK(&on_min_clicked), clock);
-    priv->minmm = gtk_button_new_with_label ("-1");
-    gtk_box_pack_start (GTK_BOX(tmp), priv->minmm, TRUE, TRUE, 0);
-    g_signal_connect (priv->minmm, "clicked",
-                      G_CALLBACK(&on_min_clicked), clock);
+    tmp = gtk_hseparator_new ();
+    gtk_box_pack_start (GTK_BOX (vbox), tmp, TRUE, TRUE, 0);
 
-    // Adjust seconds
-    tmp = gtk_vbox_new (FALSE, 0);
-    gtk_table_attach (GTK_TABLE (clock), tmp, 1, 2, 1, 2,
-                      GTK_EXPAND, GTK_EXPAND, 0, 0);
-    priv->secpp = gtk_button_new_with_label ("+1");
-    gtk_box_pack_start (GTK_BOX(tmp), priv->secpp, TRUE, TRUE, 0);
-    g_signal_connect (priv->secpp, "clicked",
-                      G_CALLBACK(&on_sec_clicked), clock);
-    priv->secmm = gtk_button_new_with_label ("-1");
-    gtk_box_pack_start (GTK_BOX(tmp), priv->secmm, TRUE, TRUE, 0);
-    g_signal_connect (priv->secmm, "clicked",
-                      G_CALLBACK(&on_sec_clicked), clock);
+    // Adjust
+    priv->adjust = gtk_button_new_with_label ("Adjust");
+    gtk_box_pack_start (GTK_BOX (vbox), priv->adjust, TRUE, TRUE, 0);
+    g_signal_connect (priv->adjust, "clicked",
+                      G_CALLBACK (&on_adjust_clicked), clock);
 
+    // Cycle digit
+    priv->cycle = gtk_button_new_with_label ("Cycle");
+    gtk_box_pack_start (GTK_BOX (vbox), priv->cycle, TRUE, TRUE, 0);
+    g_signal_connect (priv->cycle, "clicked",
+                      G_CALLBACK (&on_cycle_clicked), clock);
+
+    priv->mode = SCM_NORMAL;
     priv->secs = 999*60;
     update_digits (clock);
 }

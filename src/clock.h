@@ -15,16 +15,16 @@ typedef struct _SamClockPrivate SamClockPrivate;
 
 struct _SamClock
 {
-    GtkTable parent;
+    GtkHBox parent;
     SamClockPrivate *priv;
 };
 
 struct _SamClockClass
 {
-    GtkTableClass parent_class;
+    GtkHBoxClass parent_class;
 };
 
-extern GtkWidget* sam_clock_new (void);
+GtkWidget* sam_clock_new (void);
 
 G_END_DECLS
 

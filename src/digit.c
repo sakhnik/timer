@@ -5,6 +5,7 @@
 struct _SamDigitPrivate
 {
     int bits;
+    gboolean visible;
 };
 
 G_DEFINE_TYPE (SamDigit, sam_digit, GTK_TYPE_DRAWING_AREA)
@@ -15,7 +16,8 @@ G_DEFINE_TYPE (SamDigit, sam_digit, GTK_TYPE_DRAWING_AREA)
 static void
 sam_digit_draw (GtkWidget *digit, cairo_t *cr)
 {
-    int bits = SAM_DIGIT_GET_PRIVATE(digit)->bits;
+    SamDigitPrivate *priv = SAM_DIGIT_GET_PRIVATE (digit);
+    int bits = priv->bits;
 
     // Centre
     double x = digit->allocation.width / 2;
@@ -26,7 +28,10 @@ sam_digit_draw (GtkWidget *digit, cairo_t *cr)
     double w = a * 0.1;
     double b = w * 0.5;
 
-    cairo_set_source_rgb (cr, 0, 0.5, 0);
+    if (priv->visible)
+        cairo_set_source_rgb (cr, 0, 0.5, 0);
+    else
+        cairo_set_source_rgb (cr, 0, 0, 0);
     cairo_set_line_width (cr, w);
     if (bits & (1 << 0))
     {
@@ -96,6 +101,7 @@ static void
 sam_digit_init (SamDigit *digit)
 {
     SAM_DIGIT_GET_PRIVATE(digit)->bits = 127;
+    SAM_DIGIT_GET_PRIVATE(digit)->visible = TRUE;
 }
 
 GtkWidget*
@@ -116,4 +122,16 @@ int
 sam_digit_get_bits (SamDigit *digit)
 {
     return SAM_DIGIT_GET_PRIVATE(digit)->bits;
+}
+
+void
+sam_digit_set_visible (SamDigit *digit, gboolean visible)
+{
+    SAM_DIGIT_GET_PRIVATE(digit)->visible = visible;
+}
+
+gboolean
+sam_digit_get_visible (SamDigit *digit)
+{
+    return SAM_DIGIT_GET_PRIVATE(digit)->visible;
 }

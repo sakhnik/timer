@@ -152,6 +152,7 @@ sam_clock_on_timer (gpointer data)
     int secs, mins;
     SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
+
     sam_clock_add_second (clock, 1);
 
     if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON(priv->beep)))
@@ -250,11 +251,11 @@ sam_clock_init (SamClock *clock)
     tmp = gtk_vbox_new (FALSE, 0);
     gtk_table_attach (GTK_TABLE (clock), tmp, 0, 1, 1, 2,
                       GTK_EXPAND, GTK_EXPAND, 0, 0);
-    priv->minpp = gtk_button_new_with_label ("++MIN");
+    priv->minpp = gtk_button_new_with_label ("+1");
     gtk_box_pack_start (GTK_BOX(tmp), priv->minpp, TRUE, TRUE, 0);
     g_signal_connect (priv->minpp, "clicked",
                       G_CALLBACK(&on_min_clicked), clock);
-    priv->minmm = gtk_button_new_with_label ("--MIN");
+    priv->minmm = gtk_button_new_with_label ("-1");
     gtk_box_pack_start (GTK_BOX(tmp), priv->minmm, TRUE, TRUE, 0);
     g_signal_connect (priv->minmm, "clicked",
                       G_CALLBACK(&on_min_clicked), clock);
@@ -263,16 +264,17 @@ sam_clock_init (SamClock *clock)
     tmp = gtk_vbox_new (FALSE, 0);
     gtk_table_attach (GTK_TABLE (clock), tmp, 1, 2, 1, 2,
                       GTK_EXPAND, GTK_EXPAND, 0, 0);
-    priv->secpp = gtk_button_new_with_label ("++SEC");
+    priv->secpp = gtk_button_new_with_label ("+1");
     gtk_box_pack_start (GTK_BOX(tmp), priv->secpp, TRUE, TRUE, 0);
     g_signal_connect (priv->secpp, "clicked",
                       G_CALLBACK(&on_sec_clicked), clock);
-    priv->secmm = gtk_button_new_with_label ("--SEC");
+    priv->secmm = gtk_button_new_with_label ("-1");
     gtk_box_pack_start (GTK_BOX(tmp), priv->secmm, TRUE, TRUE, 0);
     g_signal_connect (priv->secmm, "clicked",
                       G_CALLBACK(&on_sec_clicked), clock);
 
     priv->secs = 999*60;
+    update_digits (clock);
 }
 
 GtkWidget*

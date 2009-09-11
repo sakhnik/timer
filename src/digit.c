@@ -75,8 +75,7 @@ sam_digit_draw (GtkWidget *digit, cairo_t *cr)
 static gboolean
 sam_digit_expose (GtkWidget *digit, GdkEventExpose *event)
 {
-    cairo_t *cr;
-    cr = gdk_cairo_create (digit->window);
+    cairo_t *cr = gdk_cairo_create (digit->window);
     cairo_rectangle (cr,
                      event->area.x, event->area.y,
                      event->area.width, event->area.height);

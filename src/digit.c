@@ -135,3 +135,52 @@ sam_digit_get_visible (SamDigit *digit)
 {
     return SAM_DIGIT_GET_PRIVATE(digit)->visible;
 }
+
+#define DIGIT_LEG(i) (1 << (i))
+
+void
+sam_digit_set_digit (SamDigit *digit, int value)
+{
+    switch (value)
+    {
+    case 0: sam_digit_set_bits (digit, DIGIT_LEG(0) | DIGIT_LEG(1) |
+                                       DIGIT_LEG(2) | DIGIT_LEG(4) |
+                                       DIGIT_LEG(5) | DIGIT_LEG(6));
+            return;
+    case 1: sam_digit_set_bits (digit, DIGIT_LEG(2) | DIGIT_LEG(5));
+            return;
+    case 2: sam_digit_set_bits (digit, DIGIT_LEG(0) | DIGIT_LEG(2) |
+                                       DIGIT_LEG(3) | DIGIT_LEG(4) |
+                                       DIGIT_LEG(6));
+            return;
+    case 3: sam_digit_set_bits (digit, DIGIT_LEG(0) | DIGIT_LEG(2) |
+                                       DIGIT_LEG(3) | DIGIT_LEG(5) |
+                                       DIGIT_LEG(6));
+            return;
+    case 4: sam_digit_set_bits (digit, DIGIT_LEG(1) | DIGIT_LEG(2) |
+                                       DIGIT_LEG(3) | DIGIT_LEG(5));
+            return;
+    case 5: sam_digit_set_bits (digit, DIGIT_LEG(0) | DIGIT_LEG(1) |
+                                       DIGIT_LEG(3) | DIGIT_LEG(5) |
+                                       DIGIT_LEG(6));
+            return;
+    case 6: sam_digit_set_bits (digit, DIGIT_LEG(1) | DIGIT_LEG(3) |
+                                       DIGIT_LEG(4) | DIGIT_LEG(5) |
+                                       DIGIT_LEG(6));
+            return;
+    case 7: sam_digit_set_bits (digit, DIGIT_LEG(0) | DIGIT_LEG(2) |
+                                       DIGIT_LEG(5));
+            return;
+    case 8: sam_digit_set_bits (digit, DIGIT_LEG(0) | DIGIT_LEG(1) |
+                                       DIGIT_LEG(2) | DIGIT_LEG(3) |
+                                       DIGIT_LEG(4) | DIGIT_LEG(5) |
+                                       DIGIT_LEG(6));
+            return;
+    case 9: sam_digit_set_bits (digit, DIGIT_LEG(0) | DIGIT_LEG(1) |
+                                       DIGIT_LEG(2) | DIGIT_LEG(3) |
+                                       DIGIT_LEG(5));
+            return;
+    default: sam_digit_set_bits (digit, 0);
+    }
+}
+

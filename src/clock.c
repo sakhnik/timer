@@ -1,7 +1,7 @@
 #include "clock.h"
 #include "digit.h"
 
-enum SamClockMode
+typedef enum _SamClockMode
 {
     SCM_NORMAL = 0,
     SCM_ADJUST_M3,
@@ -11,7 +11,9 @@ enum SamClockMode
     SCM_ADJUST_S1,
 
     SCM_LAST
-};
+} SamClockMode;
+
+const int MAX_SEC = 1000 * 60;
 
 struct _SamClockPrivate
 {
@@ -28,9 +30,9 @@ struct _SamClockPrivate
     GtkWidget *adjust;
     GtkWidget *cycle;
 
-    int secs;
-    guint timer;
-    enum SamClockMode mode;
+    int secs;    // seconds passed 0 <= secs <= MAX_SEC
+    guint timer; // timer id
+    SamClockMode mode; // Current operation mode
 };
 
 G_DEFINE_TYPE (SamClock, sam_clock, GTK_TYPE_HBOX)
@@ -43,6 +45,7 @@ sam_clock_dispose (GObject *obj)
 {
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (obj);
     if (priv->timer)
+        // Remove timer if any
         g_source_remove (priv->timer);
 }
 
@@ -53,54 +56,10 @@ sam_clock_class_init (SamClockClass *class)
     G_OBJECT_CLASS(class)->dispose = sam_clock_dispose;
 }
 
-#define DIGIT_LEG(i) (1 << (i))
-
-static int
-sam_clock_digit_to_bits(int digit)
+static void*
+sam_clock_do_system (void* arg)
 {
-    switch (digit)
-    {
-    case 0:
-        return DIGIT_LEG(0) | DIGIT_LEG(1) | DIGIT_LEG(2) | DIGIT_LEG(4) |
-               DIGIT_LEG(5) | DIGIT_LEG(6);
-    case 1:
-        return DIGIT_LEG(2) | DIGIT_LEG(5);
-    case 2:
-        return DIGIT_LEG(0) | DIGIT_LEG(2) | DIGIT_LEG(3) | DIGIT_LEG(4) |
-               DIGIT_LEG(6);
-    case 3:
-        return DIGIT_LEG(0) | DIGIT_LEG(2) | DIGIT_LEG(3) | DIGIT_LEG(5) |
-               DIGIT_LEG(6);
-    case 4:
-        return DIGIT_LEG(1) | DIGIT_LEG(2) | DIGIT_LEG(3) | DIGIT_LEG(5);
-    case 5:
-        return DIGIT_LEG(0) | DIGIT_LEG(1) | DIGIT_LEG(3) | DIGIT_LEG(5) |
-               DIGIT_LEG(6);
-    case 6:
-        return DIGIT_LEG(1) | DIGIT_LEG(3) | DIGIT_LEG(4) | DIGIT_LEG(5) |
-               DIGIT_LEG(6);
-    case 7:
-        return DIGIT_LEG(0) | DIGIT_LEG(2) | DIGIT_LEG(5);
-    case 8:
-        return DIGIT_LEG(0) | DIGIT_LEG(1) | DIGIT_LEG(2) | DIGIT_LEG(3) |
-               DIGIT_LEG(4) | DIGIT_LEG(5) | DIGIT_LEG(6);
-    case 9:
-        return DIGIT_LEG(0) | DIGIT_LEG(1) | DIGIT_LEG(2) | DIGIT_LEG(3) |
-               DIGIT_LEG(5);
-    default:
-        return 0;
-    }
-}
-
-static void* sam_clock_do_beep0 (void* arg)
-{
-    system ("paplay beep0.wav");
-    return NULL;
-}
-
-static void* sam_clock_do_beep1 (void* arg)
-{
-    system ("paplay beep1.wav");
+    system ((char const *) arg);
     return NULL;
 }
 
@@ -112,29 +71,16 @@ sam_clock_check_beep (SamClock *clock)
     {
         pthread_t pt;
         pthread_create (&pt, NULL,
-                        &sam_clock_do_beep0, NULL);
+                        &sam_clock_do_system, "paplay beep0.wav");
         return;
     }
     if (secs >= 55)
     {
         pthread_t pt;
         pthread_create (&pt, NULL,
-                        &sam_clock_do_beep1, NULL);
+                        &sam_clock_do_system, "paplay beep1.wav");
         return;
     }
-}
-
-static int
-sam_clock_add_second (SamClock *clock, int dt)
-{
-    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-    const int MAX_SEC = 1000 * 60;
-    priv->secs += dt;
-    if (priv->secs < 0)
-        priv->secs += MAX_SEC;
-    if (priv->secs >= MAX_SEC)
-        priv->secs -= MAX_SEC;
-    return priv->secs;
 }
 
 static void
@@ -157,16 +103,11 @@ update_digits (SamClock *clock)
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
     gint secs = priv->secs % 60;
     gint mins = priv->secs / 60;
-    sam_digit_set_bits (SAM_DIGIT(priv->s1),
-                        sam_clock_digit_to_bits(secs % 10));
-    sam_digit_set_bits (SAM_DIGIT(priv->s2),
-                        sam_clock_digit_to_bits(secs / 10));
-    sam_digit_set_bits (SAM_DIGIT(priv->m1),
-                        sam_clock_digit_to_bits(mins % 10));
-    sam_digit_set_bits (SAM_DIGIT(priv->m2),
-                        sam_clock_digit_to_bits(mins / 10 % 10));
-    sam_digit_set_bits (SAM_DIGIT(priv->m3),
-                        sam_clock_digit_to_bits(mins / 100));
+    sam_digit_set_digit (SAM_DIGIT(priv->s1), secs % 10);
+    sam_digit_set_digit (SAM_DIGIT(priv->s2), secs / 10);
+    sam_digit_set_digit (SAM_DIGIT(priv->m1), mins % 10);
+    sam_digit_set_digit (SAM_DIGIT(priv->m2), mins / 10 % 10);
+    sam_digit_set_digit (SAM_DIGIT(priv->m3), mins / 100);
 
     gtk_widget_queue_draw (GTK_WIDGET (clock));
 }
@@ -178,7 +119,12 @@ sam_clock_on_timer (gpointer data)
     SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
 
-    sam_clock_add_second (clock, 1);
+    // Add next second
+    ++priv->secs;
+    if (priv->secs < 0)
+        priv->secs += MAX_SEC;
+    if (priv->secs >= MAX_SEC)
+        priv->secs -= MAX_SEC;
 
     if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON(priv->beep)))
         sam_clock_check_beep (clock);

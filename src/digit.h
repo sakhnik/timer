@@ -41,6 +41,8 @@ int sam_digit_get_bits (SamDigit* digit);
 void sam_digit_set_visible (SamDigit* digit, gboolean visible);
 gboolean sam_digit_get_visible (SamDigit* digit);
 
+void sam_digit_set_digit (SamDigit* digit, int value);
+
 G_END_DECLS
 
 #endif //__DIGIT_H__

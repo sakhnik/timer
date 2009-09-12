@@ -25,10 +25,10 @@ struct _SamClockPrivate
     GtkWidget *s2;
     GtkWidget *s1;
     // Buttons
-    GtkWidget *beep;
-    GtkWidget *start;
-    GtkWidget *adjust;
-    GtkWidget *cycle;
+    GtkWidget *beep_button;
+    GtkWidget *start_button;
+    GtkWidget *mode_button;
+    GtkWidget *adjust_button;
 
     int secs;    // seconds passed 0 <= secs <= MAX_SEC
     guint timer; // timer id
@@ -127,7 +127,7 @@ sam_clock_on_timer (gpointer data)
     if (priv->secs >= MAX_SEC)
         priv->secs -= MAX_SEC;
 
-    if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON(priv->beep)))
+    if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON(priv->beep_button)))
         sam_clock_check_beep (clock);
 
     update_digits (clock);
@@ -136,13 +136,13 @@ sam_clock_on_timer (gpointer data)
 }
 
 static void
-on_start_clicked (GtkToggleButton *start, gpointer data)
+on_start_button_clicked (GtkToggleButton *start_button, gpointer data)
 {
     SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-    gboolean started = gtk_toggle_button_get_active (start);
-    gtk_widget_set_sensitive (GTK_WIDGET (priv->adjust), !started);
-    gtk_widget_set_sensitive (GTK_WIDGET (priv->cycle), !started);
+    gboolean started = gtk_toggle_button_get_active (start_button);
+    gtk_widget_set_sensitive (GTK_WIDGET (priv->mode_button), !started);
+    gtk_widget_set_sensitive (GTK_WIDGET (priv->adjust_button), !started);
     if (priv->timer)
         g_source_remove (priv->timer);
     if (started)
@@ -177,38 +177,38 @@ on_blink_digit (gpointer data)
     if (!active)
         return TRUE;
 
-    if (sam_digit_get_visible (SAM_DIGIT (active)))
-    {
-        sam_digit_set_visible (SAM_DIGIT (active), FALSE);
-        priv->timer = g_timeout_add (200, on_blink_digit, clock);
-    }
-    else
-    {
-        sam_digit_set_visible (SAM_DIGIT (active), TRUE);
-        priv->timer = g_timeout_add (500, on_blink_digit, clock);
-    }
+    sam_digit_set_visible (SAM_DIGIT (active),
+                           !sam_digit_get_visible (SAM_DIGIT (active)));
+    priv->timer = g_timeout_add (250, on_blink_digit, clock);
     gtk_widget_queue_draw (active);
     return TRUE;
 }
 
 static void
-on_adjust_clicked (GtkButton *min, gpointer data)
+on_mode_button_clicked (GtkButton *min, gpointer data)
 {
     SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
     GtkWidget *active = get_active_digit (clock);
+    // Show previously selected digit deliberately
     if (active)
     {
         sam_digit_set_visible (SAM_DIGIT (active), TRUE);
         gtk_widget_queue_draw (active);
     }
+    // Cycle through the digits
     if (++priv->mode == SCM_LAST)
         priv->mode = SCM_NORMAL;
+    // Start blinking selected digit
     on_blink_digit (clock);
+
+    // Show/hide the adjust button
+    active = get_active_digit (clock);
+    gtk_widget_set_sensitive (priv->adjust_button, !!active);
 }
 
 static void
-on_cycle_clicked (GtkButton *sec, gpointer data)
+on_adjust_button_clicked (GtkButton *sec, gpointer data)
 {
     SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
@@ -247,31 +247,32 @@ sam_clock_init (SamClock *clock)
     priv->s1 = sam_digit_new ();
     gtk_box_pack_start (GTK_BOX (clock), priv->s1, TRUE, TRUE, 0);
 
-    // Beep + restart + adjust + cycle
+    // Beep + restart + mode + adjust
     vbox = gtk_vbox_new (FALSE, 0);
     gtk_box_pack_start (GTK_BOX (clock), vbox, TRUE, TRUE, 0);
 
-    priv->beep = gtk_toggle_button_new_with_label ("Beep");
-    gtk_box_pack_start (GTK_BOX (vbox), priv->beep, TRUE, TRUE, 0);
-    priv->start = gtk_toggle_button_new_with_label ("Start");
-    gtk_box_pack_start (GTK_BOX (vbox), priv->start, TRUE, TRUE, 0);
-    g_signal_connect (priv->start, "toggled",
-                      G_CALLBACK (&on_start_clicked), clock);
+    priv->beep_button = gtk_toggle_button_new_with_label ("Beep");
+    gtk_box_pack_start (GTK_BOX (vbox), priv->beep_button, TRUE, TRUE, 0);
+    priv->start_button = gtk_toggle_button_new_with_label ("Start");
+    gtk_box_pack_start (GTK_BOX (vbox), priv->start_button, TRUE, TRUE, 0);
+    g_signal_connect (priv->start_button, "toggled",
+                      G_CALLBACK (&on_start_button_clicked), clock);
 
     tmp = gtk_hseparator_new ();
     gtk_box_pack_start (GTK_BOX (vbox), tmp, TRUE, TRUE, 0);
 
-    // Adjust
-    priv->adjust = gtk_button_new_with_label ("Adjust");
-    gtk_box_pack_start (GTK_BOX (vbox), priv->adjust, TRUE, TRUE, 0);
-    g_signal_connect (priv->adjust, "clicked",
-                      G_CALLBACK (&on_adjust_clicked), clock);
+    // Mode
+    priv->mode_button = gtk_button_new_with_label ("Mode");
+    gtk_box_pack_start (GTK_BOX (vbox), priv->mode_button, TRUE, TRUE, 0);
+    g_signal_connect (priv->mode_button, "clicked",
+                      G_CALLBACK (&on_mode_button_clicked), clock);
 
     // Cycle digit
-    priv->cycle = gtk_button_new_with_label ("Cycle");
-    gtk_box_pack_start (GTK_BOX (vbox), priv->cycle, TRUE, TRUE, 0);
-    g_signal_connect (priv->cycle, "clicked",
-                      G_CALLBACK (&on_cycle_clicked), clock);
+    priv->adjust_button = gtk_button_new_with_label ("Adjust");
+    gtk_box_pack_start (GTK_BOX (vbox), priv->adjust_button, TRUE, TRUE, 0);
+    gtk_widget_set_sensitive (priv->adjust_button, FALSE);
+    g_signal_connect (priv->adjust_button, "clicked",
+                      G_CALLBACK (&on_adjust_button_clicked), clock);
 
     priv->mode = SCM_NORMAL;
     priv->secs = 999*60;

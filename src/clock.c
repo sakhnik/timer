@@ -136,20 +136,6 @@ sam_clock_on_timer (gpointer data)
     return TRUE;
 }
 
-static void
-on_start_button_clicked (GtkToggleButton *start_button, gpointer data)
-{
-    SamClock *clock = (SamClock *) data;
-    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-    gboolean started = gtk_toggle_button_get_active (start_button);
-    gtk_widget_set_sensitive (GTK_WIDGET (priv->mode_button), !started);
-    gtk_widget_set_sensitive (GTK_WIDGET (priv->adjust_button), !started);
-    if (priv->timer)
-        g_source_remove (priv->timer);
-    if (started)
-        priv->timer = g_timeout_add (1000, sam_clock_on_timer, clock);
-}
-
 static GtkWidget*
 get_active_digit (SamClock *clock)
 {
@@ -186,9 +172,8 @@ on_blink_digit (gpointer data)
 }
 
 static void
-on_mode_button_clicked (GtkButton *min, gpointer data)
+select_mode (SamClock *clock, SamClockMode mode)
 {
-    SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
     GtkWidget *active = get_active_digit (clock);
     // Show previously selected digit deliberately
@@ -197,15 +182,43 @@ on_mode_button_clicked (GtkButton *min, gpointer data)
         sam_digit_set_visible (SAM_DIGIT (active), TRUE);
         gtk_widget_queue_draw (active);
     }
-    // Cycle through the digits
-    if (++priv->mode == SCM_LAST)
-        priv->mode = SCM_NORMAL;
-    // Start blinking selected digit
-    on_blink_digit (clock);
+    // Set new mode
+    if (mode > SCM_LAST)
+        mode = SCM_NORMAL;
+    priv->mode = mode;
 
     // Show/hide the adjust button
     active = get_active_digit (clock);
     gtk_widget_set_sensitive (priv->adjust_button, !!active);
+    if (active)
+        on_blink_digit (clock);
+}
+
+static void
+on_start_button_clicked (GtkToggleButton *start_button, gpointer data)
+{
+    SamClock *clock = (SamClock *) data;
+    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
+    gboolean started = gtk_toggle_button_get_active (start_button);
+
+    select_mode (clock, SCM_NORMAL);
+
+    gtk_widget_set_sensitive (GTK_WIDGET (priv->mode_button), !started);
+    gtk_widget_set_sensitive (GTK_WIDGET (priv->adjust_button), !started);
+
+    if (priv->timer)
+        g_source_remove (priv->timer);
+    if (started)
+        priv->timer = g_timeout_add (1000, sam_clock_on_timer, clock);
+}
+
+static void
+on_mode_button_clicked (GtkButton *min, gpointer data)
+{
+    SamClock *clock = (SamClock *) data;
+    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
+
+    select_mode (clock, priv->mode + 1);
 }
 
 static void

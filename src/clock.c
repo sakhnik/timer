@@ -1,5 +1,7 @@
 #include "clock.h"
 #include "digit.h"
+#include <stdlib.h>
+#include <pthread.h>
 
 typedef enum _SamClockMode
 {
@@ -116,7 +118,6 @@ update_digits (SamClock *clock)
 static gboolean
 sam_clock_on_timer (gpointer data)
 {
-    int secs, mins;
     SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
 
@@ -160,8 +161,8 @@ get_active_digit (SamClock *clock)
     case SCM_ADJUST_M1: return priv->m1;
     case SCM_ADJUST_S2: return priv->s2;
     case SCM_ADJUST_S1: return priv->s1;
+    default: return NULL;
     }
-    return NULL;
 }
 
 static gboolean
@@ -219,6 +220,7 @@ on_adjust_button_clicked (GtkButton *sec, gpointer data)
     case SCM_ADJUST_M1: sam_clock_cycle_digit (clock, 2); break;
     case SCM_ADJUST_S2: sam_clock_cycle_digit (clock, 3); break;
     case SCM_ADJUST_S1: sam_clock_cycle_digit (clock, 4); break;
+    default: break;
     }
     update_digits (clock);
 }

@@ -33,7 +33,7 @@ guint sam_number_get_value (SamNumber *number);
 
 void sam_number_set_blink (SamNumber *number, gboolean blink);
 
-void sam_number_cycle_values (SamNumber *number);
+void sam_number_cycle_values (SamNumber *number, gint delta);
 
 G_END_DECLS
 

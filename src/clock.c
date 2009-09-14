@@ -25,7 +25,8 @@ struct _SamClockPrivate
     GtkWidget *beep_button;
     GtkWidget *start_button;
     GtkWidget *mode_button;
-    GtkWidget *adjust_button;
+    GtkWidget *plus_button;
+    GtkWidget *minus_button;
 
     int secs;    // seconds passed 0 <= secs <= MAX_SEC
     guint timer; // timer id
@@ -140,7 +141,8 @@ select_mode (SamClock *clock, SamClockMode mode)
 
     // Show/hide the adjust button
     active = get_active_number (clock);
-    gtk_widget_set_sensitive (priv->adjust_button, !!active);
+    gtk_widget_set_sensitive (priv->minus_button, !!active);
+    gtk_widget_set_sensitive (priv->plus_button, !!active);
     if (active)
         sam_number_set_blink (SAM_NUMBER (active), TRUE);
 
@@ -160,7 +162,8 @@ on_start_button_clicked (GtkToggleButton *start_button, gpointer data)
     select_mode (clock, SCM_NORMAL);
 
     gtk_widget_set_sensitive (GTK_WIDGET (priv->mode_button), !started);
-    gtk_widget_set_sensitive (GTK_WIDGET (priv->adjust_button), !started);
+    gtk_widget_set_sensitive (GTK_WIDGET (priv->minus_button), !started);
+    gtk_widget_set_sensitive (GTK_WIDGET (priv->plus_button), !started);
 
     if (priv->timer)
         g_source_remove (priv->timer);
@@ -178,12 +181,16 @@ on_mode_button_clicked (GtkButton *min, gpointer data)
 }
 
 static void
-on_adjust_button_clicked (GtkButton *sec, gpointer data)
+on_adjust_button_clicked (GtkButton *adjust, gpointer data)
 {
     SamClock *clock = (SamClock *) data;
+    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
     SamNumber *active = SAM_NUMBER (get_active_number (clock));
+    gint delta = 1;
+    if (GTK_WIDGET (adjust) == priv->minus_button)
+        delta = -1;
     g_assert (active && "There must be active number");
-    sam_number_cycle_values (active);
+    sam_number_cycle_values (active, delta);
 }
 
 static void
@@ -232,10 +239,19 @@ sam_clock_init (SamClock *clock)
                       G_CALLBACK (&on_mode_button_clicked), clock);
 
     // Cycle number
-    priv->adjust_button = gtk_button_new_with_label ("Adjust");
-    gtk_box_pack_start (GTK_BOX (vbox), priv->adjust_button, TRUE, TRUE, 0);
-    gtk_widget_set_sensitive (priv->adjust_button, FALSE);
-    g_signal_connect (priv->adjust_button, "clicked",
+    tmp = gtk_hbox_new (FALSE, 0);
+    gtk_box_pack_start (GTK_BOX (vbox), tmp, TRUE, TRUE, 0);
+
+    priv->minus_button = gtk_button_new_with_label ("−");
+    gtk_box_pack_start (GTK_BOX (tmp), priv->minus_button, TRUE, TRUE, 0);
+    gtk_widget_set_sensitive (priv->minus_button, FALSE);
+    g_signal_connect (priv->minus_button, "clicked",
+                      G_CALLBACK (&on_adjust_button_clicked), clock);
+
+    priv->plus_button = gtk_button_new_with_label ("+");
+    gtk_box_pack_start (GTK_BOX (tmp), priv->plus_button, TRUE, TRUE, 0);
+    gtk_widget_set_sensitive (priv->plus_button, FALSE);
+    g_signal_connect (priv->plus_button, "clicked",
                       G_CALLBACK (&on_adjust_button_clicked), clock);
 
     priv->mode = SCM_NORMAL;

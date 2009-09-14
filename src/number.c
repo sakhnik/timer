@@ -117,11 +117,14 @@ sam_number_set_blink (SamNumber *number, gboolean blink)
 }
 
 void
-sam_number_cycle_values (SamNumber *number)
+sam_number_cycle_values (SamNumber *number, gint delta)
 {
     SamNumberPrivate *priv = SAM_NUMBER_GET_PRIVATE (number);
-    guint val = priv->val + 1;
-    if (val >= priv->max_val)
-        val = 0;
+    gint val = delta + priv->val;
+    gint max_val = priv->max_val; // convert to signed deliberately
+    if (val >= max_val)
+        val -= max_val;
+    if (val < 0)
+        val += max_val;
     sam_number_set_value (number, val);
 }

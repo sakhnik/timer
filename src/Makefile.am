@@ -7,3 +7,5 @@ timer_SOURCES = main.c \
 
 timer_CPPFLAGS = @GTK_CFLAGS@
 timer_LDADD = @GTK_LIBS@
+
+EXTRA_DIST = beep0.wav beep1.wav

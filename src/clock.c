@@ -13,8 +13,6 @@ typedef enum _SamClockMode
     SCM_LAST
 } SamClockMode;
 
-const int MAX_SEC = 24 * 60 * 60;
-
 struct _SamClockPrivate
 {
     // Numbers
@@ -28,7 +26,6 @@ struct _SamClockPrivate
     GtkWidget *plus_button;
     GtkWidget *minus_button;
 
-    int secs;    // seconds passed 0 <= secs <= MAX_SEC
     guint timer; // timer id
     SamClockMode mode; // Current operation mode
 };
@@ -65,7 +62,8 @@ sam_clock_do_system (void* arg)
 static void
 sam_clock_check_beep (SamClock *clock)
 {
-    int secs = SAM_CLOCK_GET_PRIVATE (clock)->secs % 60;
+    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
+    guint secs = sam_number_get_value (SAM_NUMBER (priv->seconds));
     if (!secs)
     {
         pthread_t pt;
@@ -82,33 +80,30 @@ sam_clock_check_beep (SamClock *clock)
     }
 }
 
-static void
-update_digits (SamClock *clock)
-{
-    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-
-    sam_number_set_value (SAM_NUMBER(priv->seconds), priv->secs % 60);
-    sam_number_set_value (SAM_NUMBER(priv->minutes), priv->secs / 60 % 60);
-    sam_number_set_value (SAM_NUMBER(priv->hours), priv->secs / 60 / 60);
-}
-
 static gboolean
 sam_clock_on_timer (gpointer data)
 {
     SamClock *clock = (SamClock *) data;
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
+    guint remind = 0;
 
-    // Add next second
-    ++priv->secs;
-    if (priv->secs < 0)
-        priv->secs += MAX_SEC;
-    if (priv->secs >= MAX_SEC)
-        priv->secs -= MAX_SEC;
+    guint tmp = sam_number_get_value (SAM_NUMBER (priv->seconds)) + 1;
+    remind = tmp / 60;
+    sam_number_set_value (SAM_NUMBER (priv->seconds), tmp % 60);
+    if (remind)
+    {
+        tmp = sam_number_get_value (SAM_NUMBER (priv->minutes)) + remind;
+        remind = tmp / 60;
+        sam_number_set_value (SAM_NUMBER (priv->minutes), tmp % 60);
+    }
+    if (remind)
+    {
+        tmp = sam_number_get_value (SAM_NUMBER (priv->hours)) + remind;
+        sam_number_set_value (SAM_NUMBER (priv->hours), tmp % 24);
+    }
 
     if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON(priv->beep_button)))
         sam_clock_check_beep (clock);
-
-    update_digits (clock);
 
     return TRUE;
 }
@@ -145,11 +140,6 @@ select_mode (SamClock *clock, SamClockMode mode)
     gtk_widget_set_sensitive (priv->plus_button, !!active);
     if (active)
         sam_number_set_blink (SAM_NUMBER (active), TRUE);
-
-    // Calculate current seconds value
-    priv->secs = sam_number_get_value (SAM_NUMBER (priv->seconds)) +
-                 sam_number_get_value (SAM_NUMBER (priv->minutes)) * 60 +
-                 sam_number_get_value (SAM_NUMBER (priv->hours)) * 60 * 60;
 }
 
 static void
@@ -191,6 +181,7 @@ on_adjust_button_clicked (GtkButton *adjust, gpointer data)
         delta = -1;
     g_assert (active && "There must be active number");
     sam_number_cycle_values (active, delta);
+    sam_number_set_blink (active, TRUE); // For nice visual effect
 }
 
 static void
@@ -203,6 +194,7 @@ sam_clock_init (SamClock *clock)
     // Hours
     priv->hours = sam_number_new (24);
     gtk_box_pack_start (GTK_BOX (clock), priv->hours, TRUE, TRUE, 0);
+    sam_number_set_value (SAM_NUMBER (priv->hours), 23);
 
     tmp = gtk_vseparator_new ();
     gtk_box_pack_start (GTK_BOX (clock), tmp, TRUE, TRUE, 0);
@@ -210,6 +202,7 @@ sam_clock_init (SamClock *clock)
     // Minutes
     priv->minutes = sam_number_new (60);
     gtk_box_pack_start (GTK_BOX (clock), priv->minutes, TRUE, TRUE, 0);
+    sam_number_set_value (SAM_NUMBER (priv->minutes), 59);
 
     tmp = gtk_vseparator_new ();
     gtk_box_pack_start (GTK_BOX (clock), tmp, TRUE, TRUE, 0);
@@ -217,6 +210,7 @@ sam_clock_init (SamClock *clock)
     // Seconds
     priv->seconds = sam_number_new (60);
     gtk_box_pack_start (GTK_BOX (clock), priv->seconds, TRUE, TRUE, 0);
+    sam_number_set_value (SAM_NUMBER (priv->seconds), 0);
 
     // Beep + restart + mode + adjust
     vbox = gtk_vbox_new (FALSE, 0);
@@ -255,8 +249,6 @@ sam_clock_init (SamClock *clock)
                       G_CALLBACK (&on_adjust_button_clicked), clock);
 
     priv->mode = SCM_NORMAL;
-    priv->secs = 24*60*60 - 60;
-    update_digits (clock);
 }
 
 GtkWidget*

@@ -80,21 +80,29 @@ guint sam_number_get_value (SamNumber *number)
     return SAM_NUMBER_GET_PRIVATE (number)->val;
 }
 
-static gboolean
-on_blink (gpointer data)
+static gboolean on_blink (gpointer data);
+
+static void
+do_blink (SamNumber *number, gboolean start)
 {
-    SamNumber *number = (SamNumber *) data;
     SamNumberPrivate *priv = SAM_NUMBER_GET_PRIVATE (number);
+    gboolean visible = sam_digit_get_visible (SAM_DIGIT (priv->d2));
 
     if (priv->timer)
         g_source_remove (priv->timer);
 
-    sam_digit_set_visible (SAM_DIGIT (priv->d2),
-                           !sam_digit_get_visible (SAM_DIGIT (priv->d2)));
-    sam_digit_set_visible (SAM_DIGIT (priv->d1),
-                           !sam_digit_get_visible (SAM_DIGIT (priv->d1)));
+    sam_digit_set_visible (SAM_DIGIT (priv->d2), start || !visible);
+    sam_digit_set_visible (SAM_DIGIT (priv->d1), start || !visible);
+
     priv->timer = g_timeout_add (250, on_blink, number);
     gtk_widget_queue_draw (GTK_WIDGET (number));
+}
+
+static gboolean
+on_blink (gpointer data)
+{
+    SamNumber *number = (SamNumber *) data;
+    do_blink (number, FALSE);
     return TRUE;
 }
 
@@ -105,7 +113,7 @@ sam_number_set_blink (SamNumber *number, gboolean blink)
 
     if (blink)
     {
-        on_blink (number);
+        do_blink (number, TRUE);
         return;
     }
 

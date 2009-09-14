@@ -1,31 +1,26 @@
 #include "clock.h"
-#include "digit.h"
+#include "number.h"
 #include <stdlib.h>
 #include <pthread.h>
 
 typedef enum _SamClockMode
 {
     SCM_NORMAL = 0,
-    SCM_ADJUST_M3,
-    SCM_ADJUST_M2,
-    SCM_ADJUST_M1,
-    SCM_ADJUST_S2,
-    SCM_ADJUST_S1,
+    SCM_ADJUST_HR,
+    SCM_ADJUST_MIN,
+    SCM_ADJUST_SEC,
 
     SCM_LAST
 } SamClockMode;
 
-const int MAX_SEC = 1000 * 60;
+const int MAX_SEC = 24 * 60 * 60;
 
 struct _SamClockPrivate
 {
-    // Minutes
-    GtkWidget *m3;
-    GtkWidget *m2;
-    GtkWidget *m1;
-    // Seconds
-    GtkWidget *s2;
-    GtkWidget *s1;
+    // Numbers
+    GtkWidget *hours;
+    GtkWidget *minutes;
+    GtkWidget *seconds;
     // Buttons
     GtkWidget *beep_button;
     GtkWidget *start_button;
@@ -61,7 +56,8 @@ sam_clock_class_init (SamClockClass *class)
 static void*
 sam_clock_do_system (void* arg)
 {
-    system ((char const *) arg);
+    int res = system ((char const *) arg);
+    if (res);
     return NULL;
 }
 
@@ -86,33 +82,13 @@ sam_clock_check_beep (SamClock *clock)
 }
 
 static void
-sam_clock_cycle_digit (SamClock *clock, int n)
-{
-    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-    guint mins = priv->secs / 60;
-    guint secs = priv->secs % 60;
-    char buf[24];
-    snprintf(buf, sizeof(buf), "%03d%02d", mins, secs);
-    ++buf[n];
-    if ((n == 3 && buf[n] > '5') || buf[n] > '9')
-        buf[n] = '0';
-    sscanf(buf, "%03d%02d", &mins, &secs);
-    priv->secs = mins * 60 + secs;
-}
-
-static void
 update_digits (SamClock *clock)
 {
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-    gint secs = priv->secs % 60;
-    gint mins = priv->secs / 60;
-    sam_digit_set_digit (SAM_DIGIT(priv->s1), secs % 10);
-    sam_digit_set_digit (SAM_DIGIT(priv->s2), secs / 10);
-    sam_digit_set_digit (SAM_DIGIT(priv->m1), mins % 10);
-    sam_digit_set_digit (SAM_DIGIT(priv->m2), mins / 10 % 10);
-    sam_digit_set_digit (SAM_DIGIT(priv->m3), mins / 100);
 
-    gtk_widget_queue_draw (GTK_WIDGET (clock));
+    sam_number_set_value (SAM_NUMBER(priv->seconds), priv->secs % 60);
+    sam_number_set_value (SAM_NUMBER(priv->minutes), priv->secs / 60 % 60);
+    sam_number_set_value (SAM_NUMBER(priv->hours), priv->secs / 60 / 60);
 }
 
 static gboolean
@@ -137,61 +113,41 @@ sam_clock_on_timer (gpointer data)
 }
 
 static GtkWidget*
-get_active_digit (SamClock *clock)
+get_active_number (SamClock *clock)
 {
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
     switch (priv->mode)
     {
-    case SCM_ADJUST_M3: return priv->m3;
-    case SCM_ADJUST_M2: return priv->m2;
-    case SCM_ADJUST_M1: return priv->m1;
-    case SCM_ADJUST_S2: return priv->s2;
-    case SCM_ADJUST_S1: return priv->s1;
+    case SCM_ADJUST_HR: return priv->hours;
+    case SCM_ADJUST_MIN: return priv->minutes;
+    case SCM_ADJUST_SEC: return priv->seconds;
     default: return NULL;
     }
-}
-
-static gboolean
-on_blink_digit (gpointer data)
-{
-    SamClock *clock = (SamClock *) data;
-    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-    GtkWidget *active = get_active_digit (clock);
-
-    if (priv->timer)
-        g_source_remove (priv->timer);
-
-    if (!active)
-        return TRUE;
-
-    sam_digit_set_visible (SAM_DIGIT (active),
-                           !sam_digit_get_visible (SAM_DIGIT (active)));
-    priv->timer = g_timeout_add (250, on_blink_digit, clock);
-    gtk_widget_queue_draw (active);
-    return TRUE;
 }
 
 static void
 select_mode (SamClock *clock, SamClockMode mode)
 {
     SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-    GtkWidget *active = get_active_digit (clock);
-    // Show previously selected digit deliberately
+    GtkWidget *active = get_active_number (clock);
+    // Show previously selected number deliberately
     if (active)
-    {
-        sam_digit_set_visible (SAM_DIGIT (active), TRUE);
-        gtk_widget_queue_draw (active);
-    }
+        sam_number_set_blink (SAM_NUMBER (active), FALSE);
     // Set new mode
-    if (mode > SCM_LAST)
+    if (mode >= SCM_LAST)
         mode = SCM_NORMAL;
     priv->mode = mode;
 
     // Show/hide the adjust button
-    active = get_active_digit (clock);
+    active = get_active_number (clock);
     gtk_widget_set_sensitive (priv->adjust_button, !!active);
     if (active)
-        on_blink_digit (clock);
+        sam_number_set_blink (SAM_NUMBER (active), TRUE);
+
+    // Calculate current seconds value
+    priv->secs = sam_number_get_value (SAM_NUMBER (priv->seconds)) +
+                 sam_number_get_value (SAM_NUMBER (priv->minutes)) * 60 +
+                 sam_number_get_value (SAM_NUMBER (priv->hours)) * 60 * 60;
 }
 
 static void
@@ -225,17 +181,9 @@ static void
 on_adjust_button_clicked (GtkButton *sec, gpointer data)
 {
     SamClock *clock = (SamClock *) data;
-    SamClockPrivate *priv = SAM_CLOCK_GET_PRIVATE (clock);
-    switch (priv->mode)
-    {
-    case SCM_ADJUST_M3: sam_clock_cycle_digit (clock, 0); break;
-    case SCM_ADJUST_M2: sam_clock_cycle_digit (clock, 1); break;
-    case SCM_ADJUST_M1: sam_clock_cycle_digit (clock, 2); break;
-    case SCM_ADJUST_S2: sam_clock_cycle_digit (clock, 3); break;
-    case SCM_ADJUST_S1: sam_clock_cycle_digit (clock, 4); break;
-    default: break;
-    }
-    update_digits (clock);
+    SamNumber *active = SAM_NUMBER (get_active_number (clock));
+    g_assert (active && "There must be active number");
+    sam_number_cycle_values (active);
 }
 
 static void
@@ -245,22 +193,23 @@ sam_clock_init (SamClock *clock)
     GtkWidget *vbox;
     SamClockPrivate* priv = SAM_CLOCK_GET_PRIVATE (clock);
 
+    // Hours
+    priv->hours = sam_number_new (24);
+    gtk_box_pack_start (GTK_BOX (clock), priv->hours, TRUE, TRUE, 0);
+
+    tmp = gtk_vseparator_new ();
+    gtk_box_pack_start (GTK_BOX (clock), tmp, TRUE, TRUE, 0);
+
     // Minutes
-    priv->m3 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX (clock), priv->m3, TRUE, TRUE, 0);
-    priv->m2 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX (clock), priv->m2, TRUE, TRUE, 0);
-    priv->m1 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX (clock), priv->m1, TRUE, TRUE, 0);
+    priv->minutes = sam_number_new (60);
+    gtk_box_pack_start (GTK_BOX (clock), priv->minutes, TRUE, TRUE, 0);
 
     tmp = gtk_vseparator_new ();
     gtk_box_pack_start (GTK_BOX (clock), tmp, TRUE, TRUE, 0);
 
     // Seconds
-    priv->s2 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX (clock), priv->s2, TRUE, TRUE, 0);
-    priv->s1 = sam_digit_new ();
-    gtk_box_pack_start (GTK_BOX (clock), priv->s1, TRUE, TRUE, 0);
+    priv->seconds = sam_number_new (60);
+    gtk_box_pack_start (GTK_BOX (clock), priv->seconds, TRUE, TRUE, 0);
 
     // Beep + restart + mode + adjust
     vbox = gtk_vbox_new (FALSE, 0);
@@ -282,7 +231,7 @@ sam_clock_init (SamClock *clock)
     g_signal_connect (priv->mode_button, "clicked",
                       G_CALLBACK (&on_mode_button_clicked), clock);
 
-    // Cycle digit
+    // Cycle number
     priv->adjust_button = gtk_button_new_with_label ("Adjust");
     gtk_box_pack_start (GTK_BOX (vbox), priv->adjust_button, TRUE, TRUE, 0);
     gtk_widget_set_sensitive (priv->adjust_button, FALSE);
@@ -290,7 +239,7 @@ sam_clock_init (SamClock *clock)
                       G_CALLBACK (&on_adjust_button_clicked), clock);
 
     priv->mode = SCM_NORMAL;
-    priv->secs = 999*60;
+    priv->secs = 24*60*60 - 60;
     update_digits (clock);
 }
 

@@ -5,6 +5,8 @@
 
 G_BEGIN_DECLS
 
+GType sam_clock_get_type (void);
+
 #define SAM_TYPE_CLOCK          (sam_clock_get_type())
 #define SAM_CLOCK(obj)          \
         (G_TYPE_CHECK_INSTANCE_CAST ((obj), SAM_TYPE_CLOCK, SamClock))

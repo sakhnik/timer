@@ -128,6 +128,7 @@ void
 sam_digit_set_visible (SamDigit *digit, gboolean visible)
 {
     SAM_DIGIT_GET_PRIVATE(digit)->visible = visible;
+    gtk_widget_queue_draw (GTK_WIDGET (digit));
 }
 
 gboolean

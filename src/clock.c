@@ -59,6 +59,12 @@ sam_clock_do_system (void* arg)
     return NULL;
 }
 
+#ifdef WIN32
+#  define PLAY "sndrec32 /play /close /embedding "
+#else
+#  define PLAY "aplay "
+#endif
+
 static void
 sam_clock_check_beep (SamClock *clock)
 {
@@ -68,14 +74,17 @@ sam_clock_check_beep (SamClock *clock)
     {
         pthread_t pt;
         pthread_create (&pt, NULL,
-                        &sam_clock_do_system, "paplay beep0.wav");
+                        &sam_clock_do_system,
+                        PLAY "beep0.wav");
+
         return;
     }
     if (secs >= 55)
     {
         pthread_t pt;
         pthread_create (&pt, NULL,
-                        &sam_clock_do_system, "paplay beep1.wav");
+                        &sam_clock_do_system,
+                        PLAY "beep1.wav");
         return;
     }
 }
